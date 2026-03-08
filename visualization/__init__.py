@@ -6,6 +6,10 @@ from visualization.visualizer import (
     plot_planet_comparison,
     save_figure,
     apply_journal_style,
-    WONG, WONG_CYCLE,
-    SINGLE_COL, DOUBLE_COL, FULL_PAGE, SQUARE_SM, SQUARE_LG,
+    WONG_CYCLE,
+    W_BLUE, W_RED, W_GREEN, W_ORANGE, W_BLACK,
+    C_DENSITY, C_PRESSURE, C_TEMP,
+    C_ALT, C_SPEED, C_FUEL, C_HEAT, C_TARGET,
+    F_TITLE, F_LABEL, F_TICK, F_LEGEND, F_ANNOT,
+    LW, LW2,
 )

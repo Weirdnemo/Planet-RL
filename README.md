@@ -2,7 +2,7 @@
 
 > A procedural planet generation and orbital mechanics sandbox for training reinforcement learning agents on orbit insertion — across any planet in the universe.
 
-![Sandbox Overview](sandbox_overview.png)
+![Sandbox Overview](helpers/sandbox_overview.png)
 
 ---
 
@@ -60,12 +60,12 @@ N-body moon perturbations with configurable count, mass fraction, and orbital ra
 ## Visualizations
 
 ### Planet Overview & Atmosphere Profiles
-![Sandbox Overview](sandbox_overview.png)
+![Sandbox Overview](helpers/sandbox_overview.png)
 
 *Top row: cross-sections of Earth, Mars, Venus, Moon with atmosphere rings and magnetic field arcs. Middle row: density / pressure / temperature altitude profiles. Bottom row: orbital trajectory and planet comparison charts.*
 
 ### Mission Telemetry Dashboard
-![Mission Telemetry](mission_telemetry.png)
+![Mission Telemetry](helpers/mission_telemetry.png)
 
 *Real-time altitude, speed, fuel consumption, and aeroheating across a simulated Mars orbital insertion.*
 
