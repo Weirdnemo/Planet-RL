@@ -1,21 +1,5 @@
 """
 demo.py — Full sandbox demo: generate planets, run physics, visualize.
-
-Folder layout expected:
-    Planet-RL/
-    ├── demo.py               ← run this
-    ├── core/
-    │   ├── __init__.py
-    │   ├── planet.py
-    │   ├── generator.py
-    │   ├── physics.py
-    │   └── env.py
-    └── visualization/
-        ├── __init__.py
-        └── visualizer.py
-
-Run from Planet-RL/:
-    python demo.py
 """
 
 import sys, os
