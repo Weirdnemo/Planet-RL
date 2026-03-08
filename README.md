@@ -154,6 +154,10 @@ barren = gen.generate(
     oblateness_enabled=False,
     moons_enabled=False,
 )
+
+print(planet.summary())
+print()
+print(barren.summary())
 ```
 
 ### Batch generation for curriculum training
