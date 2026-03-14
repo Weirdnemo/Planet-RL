@@ -263,3 +263,210 @@ class Planet:
                 + (f" | n={self.moons.count}" if self.moons.enabled else ""),
         ]
         return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Extended planet with interior + stellar context (Step 1 additions)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _attach_interior_and_star():
+    """
+    Monkey-patch Planet with interior and star_context fields, plus
+    derived-property methods, without breaking backward compatibility.
+
+    Called once at module import time.  Existing Planet instances are
+    unaffected; the new fields default to None.
+    """
+    import dataclasses as _dc
+    from core.interior import InteriorConfig, ConvectionState   # noqa: F401
+    from core.star import Star                                   # noqa: F401
+
+    # ── Add optional fields ───────────────────────────────────────────────────
+    # We extend the dataclass fields list so Planet(interior=...) works.
+    # This is safe because dataclass fields are stored on the class, not instances.
+    existing_fields = {f.name for f in _dc.fields(Planet)}
+
+    if "interior" not in existing_fields:
+        # Inject new fields with defaults
+        Planet.__dataclass_fields__["interior"] = _dc.field(
+            default=None, repr=True, compare=True
+        )
+        Planet.__dataclass_fields__["star_context"] = _dc.field(
+            default=None, repr=False, compare=False
+        )
+        Planet.__dataclass_fields__["orbital_distance_m"] = _dc.field(
+            default=None, repr=False, compare=False
+        )
+
+        # Patch __init__ to accept and store new fields
+        _orig_init = Planet.__init__
+
+        def _new_init(self, *args, interior=None, star_context=None,
+                      orbital_distance_m=None, **kwargs):
+            _orig_init(self, *args, **kwargs)
+            self.interior             = interior
+            self.star_context         = star_context
+            self.orbital_distance_m   = orbital_distance_m
+
+        Planet.__init__ = _new_init
+
+    # ── Derived property methods (interior) ───────────────────────────────────
+
+    def derived_J2(self) -> float:
+        """
+        J2 derived from interior MoI + rotation rate.
+        Returns the hand-set oblateness.J2 if interior is not enabled.
+        """
+        if self.interior and self.interior.enabled and self.rotation_enabled:
+            return self.interior.compute_J2(
+                self.radius, self.mass, self.rotation_period
+            )
+        return self.oblateness.J2
+
+    def derived_magnetic_field_T(self) -> float:
+        """
+        Surface dipole field strength [Tesla] from interior dynamo model.
+        Returns None if interior not enabled.
+        Earth ≈ 3e-5 T (30 μT).
+        """
+        if self.interior and self.interior.enabled:
+            return self.interior.surface_magnetic_field_T(self.radius, self.mass)
+        # Fallback: map enum to approximate B
+        _B_MAP = {
+            MagneticFieldStrength.NONE:   0.0,
+            MagneticFieldStrength.WEAK:   3e-6,
+            MagneticFieldStrength.MEDIUM: 3e-5,
+            MagneticFieldStrength.STRONG: 4e-4,
+        }
+        return _B_MAP.get(self.magnetic_field.strength, 0.0)
+
+    def derived_heat_flux(self) -> float:
+        """
+        Surface radiogenic heat flux [W/m²] from interior model.
+        Earth present-day ≈ 0.030 W/m².
+        Returns 0 if interior not enabled.
+        """
+        if self.interior and self.interior.enabled:
+            return self.interior.radiogenic_heat_flux(self.radius, self.mass)
+        return 0.0
+
+    def derived_MoI(self) -> float:
+        """
+        Moment of inertia factor C/(MR²).
+        Earth ≈ 0.3307.  Uniform sphere = 0.4.
+        Returns 0.4 if interior not enabled.
+        """
+        if self.interior and self.interior.enabled:
+            return self.interior.moment_of_inertia_factor(self.radius, self.mass)
+        return 0.4
+
+    def equilibrium_temperature(self, bond_albedo: float = 0.3) -> float:
+        """
+        Radiative equilibrium temperature [K].
+        Requires orbital_distance_m and star_context to be set.
+        """
+        if self.star_context and self.orbital_distance_m:
+            return self.star_context.equilibrium_temperature(
+                self.orbital_distance_m, bond_albedo
+            )
+        return self.atmosphere.surface_temp  # fallback
+
+    def in_habitable_zone(self, conservative: bool = True) -> bool:
+        """
+        True if the planet's orbital distance falls in the stellar HZ.
+        Requires star_context and orbital_distance_m.
+        """
+        if self.star_context and self.orbital_distance_m:
+            return self.star_context.in_habitable_zone(
+                self.orbital_distance_m, conservative
+            )
+        return False
+
+    def stellar_flux(self) -> float:
+        """
+        Bolometric stellar flux at the planet's orbit [W/m²].
+        Requires star_context and orbital_distance_m.
+        """
+        if self.star_context and self.orbital_distance_m:
+            return self.star_context.flux_at_distance(self.orbital_distance_m)
+        return 0.0
+
+    def xuv_flux(self) -> float:
+        """
+        XUV flux driving atmospheric escape [W/m²].
+        Requires star_context and orbital_distance_m.
+        """
+        if self.star_context and self.orbital_distance_m:
+            return self.star_context.xuv_flux_at_distance(self.orbital_distance_m)
+        return 0.0
+
+    def is_tidally_locked(self, Q_factor: float = 100.0) -> bool:
+        """
+        True if tidal forces from the star would lock the planet's rotation
+        within 4.5 Gyr.  Requires star_context and orbital_distance_m.
+        """
+        if self.star_context and self.orbital_distance_m:
+            return self.star_context.is_tidally_locked(
+                self.orbital_distance_m, self.mass, self.radius, Q_factor
+            )
+        return False
+
+    # Attach methods
+    Planet.derived_J2                = derived_J2
+    Planet.derived_magnetic_field_T  = derived_magnetic_field_T
+    Planet.derived_heat_flux         = derived_heat_flux
+    Planet.derived_MoI               = derived_MoI
+    Planet.equilibrium_temperature   = equilibrium_temperature
+    Planet.in_habitable_zone         = in_habitable_zone
+    Planet.stellar_flux              = stellar_flux
+    Planet.xuv_flux                  = xuv_flux
+    Planet.is_tidally_locked         = is_tidally_locked
+
+    # ── Extended summary ──────────────────────────────────────────────────────
+    _orig_summary = Planet.summary
+
+    def extended_summary(self) -> str:
+        base = _orig_summary(self)
+        extra = []
+
+        if self.interior and self.interior.enabled:
+            B  = self.derived_magnetic_field_T()
+            hf = self.derived_heat_flux()
+            MoI = self.derived_MoI()
+            J2_d = self.derived_J2()
+            extra += [
+                f"  ── Interior (derived) ──",
+                f"  MoI factor         : {MoI:.4f}  (uniform=0.400, Earth=0.331)",
+                f"  J2 (derived)       : {J2_d:.4e}",
+                f"  Surface B-field    : {B*1e6:.1f} μT  ({B:.2e} T)",
+                f"  Radiogenic flux    : {hf*1000:.2f} mW/m²",
+                self.interior.layer_summary(self.radius, self.mass),
+            ]
+
+        if self.star_context and self.orbital_distance_m:
+            from core.star import AU
+            T_eq = self.equilibrium_temperature()
+            in_hz = self.in_habitable_zone()
+            hz_f  = self.star_context.hz_fraction(self.orbital_distance_m)
+            extra += [
+                f"  ── Stellar context ──",
+                f"  Star               : {self.star_context.name}  "
+                    f"({self.star_context.spectral_type.name})",
+                f"  Orbital distance   : {self.orbital_distance_m/AU:.3f} AU",
+                f"  Stellar flux       : {self.stellar_flux():.1f} W/m²",
+                f"  Equilibrium temp   : {T_eq:.1f} K",
+                f"  In habitable zone  : {'YES' if in_hz else 'NO'}  "
+                    f"(HZ fraction={hz_f:.2f})",
+                f"  Tidally locked     : {'YES' if self.is_tidally_locked() else 'NO'}",
+                f"  XUV flux           : {self.xuv_flux():.3e} W/m²",
+            ]
+
+        if extra:
+            return base + "\n" + "\n".join(extra)
+        return base
+
+    Planet.summary = extended_summary
+
+
+# Run the extension immediately on import
+_attach_interior_and_star()
